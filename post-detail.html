@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chi tiết bài viết</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet"/>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f8f9fa;
+      color: #212529;
+    }
+    .post-container {
+      max-width: 900px;
+      margin: 40px auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+      padding: 30px;
+    }
+    .post-image {
+      width: 100%;
+      height: 400px;
+      object-fit: cover;
+      border-radius: 12px;
+      margin-bottom: 25px;
+    }
+    .post-title {
+      font-size: 2rem;
+      font-weight: bold;
+      margin-bottom: 15px;
+    }
+    .post-meta {
+      display: flex;
+      gap: 20px;
+      color: #6c757d;
+      margin-bottom: 25px;
+    }
+    .post-content {
+      line-height: 1.8;
+      font-size: 1.05rem;
+      margin-bottom: 30px;
+    }
+    .like-btn {
+      border: none;
+      background: none;
+      color: #dc3545;
+      font-size: 1.3rem;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+    .like-btn.liked i {
+      color: #e63946;
+    }
+    .like-btn:hover {
+      transform: scale(1.2);
+    }
+    .comment-section {
+      margin-top: 40px;
+    }
+    .comment-input {
+      width: 100%;
+      padding: 12px 20px;
+      border-radius: 30px;
+      border: 1px solid #ccc;
+      outline: none;
+    }
+    .comment-list {
+      margin-top: 25px;
+    }
+    .comment-item {
+      padding: 15px 0;
+      border-bottom: 1px solid #e9ecef;
+    }
+    .comment-author {
+      font-weight: bold;
+    }
+    .comment-date {
+      font-size: 0.85rem;
+      color: #6c757d;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="post-container">
+      <img src="" id="postImage" class="post-image" alt="Bìa bài viết">
+      <h1 class="post-title" id="postTitle">Đang tải...</h1>
+      <div class="post-meta">
+        <span><i class="far fa-calendar-alt me-1"></i><span id="postDate"></span></span>
+        <span><i class="far fa-eye me-1"></i><span id="postViews">0</span> lượt xem</span>
+        <span><i class="far fa-heart me-1"></i><span id="postLikes">0</span> lượt thích</span>
+      </div>
+      <button class="like-btn" id="likeBtn"><i class="fas fa-heart"></i></button>
+      <div class="post-content" id="postContent">...</div>
+
+      <div class="comment-section">
+        <h4>Bình luận</h4>
+        <div class="input-group mt-3">
+          <input type="text" id="commentInput" class="comment-input" placeholder="Viết bình luận...">
+          <button class="btn btn-primary ms-2" id="sendComment">Gửi</button>
+        </div>
+        <div id="commentList" class="comment-list mt-4">
+          <p class="text-muted">Chưa có bình luận nào.</p>
+        </div>
+      </div>
+    </div>
+    <div class="text-center mt-4">
+      <a href="index.html" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Quay lại trang chủ</a>
+    </div>
+  </div>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAKGtqzDgN8NLdto1MXO_LsUwTvgnQ-TmI",
+      authDomain: "web-blog-b54dc.firebaseapp.com",
+      projectId: "web-blog-b54dc",
+      storageBucket: "web-blog-b54dc.appspot.com",
+      messagingSenderId: "658376440725",
+      appId: "1:658376440725:web:4d1dacbc13c4090cfcd49c"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const postId = new URLSearchParams(window.location.search).get("postId");
+    let currentPost = null;
+    let comments = [];
+
+    async function loadPost() {
+      if (!postId) return;
+
+      const doc = await db.collection("posts").doc(postId).get();
+      if (!doc.exists) {
+        document.getElementById("postTitle").textContent = "Bài viết không tồn tại.";
+        return;
+      }
+
+      const post = doc.data();
+      currentPost = { id: postId, ...post };
+
+      const image = Array.isArray(post.images) && post.images.length > 0
+        ? post.images[0]
+        : "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80";
+
+      const date = post.createdAt?.toDate?.() || new Date();
+      const formattedDate = date.toLocaleDateString("vi-VN");
+
+      document.getElementById("postImage").src = image;
+      document.getElementById("postTitle").textContent = post.title;
+      document.getElementById("postDate").textContent = formattedDate;
+      document.getElementById("postViews").textContent = post.views || 0;
+      document.getElementById("postLikes").textContent = post.likes || 0;
+      document.getElementById("postContent").innerHTML = post.content || "<p>Nội dung đang cập nhật...</p>";
+
+      // Tăng lượt xem
+      await db.collection("posts").doc(postId).update({
+        views: (post.views || 0) + 1
+      });
+
+      loadComments();
+    }
+
+    async function loadComments() {
+      const snapshot = await db.collection("comments")
+        .where("postId", "==", postId)
+        .orderBy("createdAt", "desc")
+        .get();
+
+      comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      renderComments();
+    }
+
+    function renderComments() {
+      const list = document.getElementById("commentList");
+      if (comments.length === 0) {
+        list.innerHTML = '<p class="text-muted">Chưa có bình luận nào.</p>';
+        return;
+      }
+
+      list.innerHTML = comments.map(c => {
+        const date = c.createdAt?.toDate?.() || new Date();
+        const d = date.toLocaleDateString("vi-VN");
+        return `
+          <div class="comment-item">
+            <div class="comment-author">${c.author || "Người dùng"}</div>
+            <div class="comment-date">${d}</div>
+            <div>${c.text}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    async function sendComment() {
+      const input = document.getElementById("commentInput");
+      const text = input.value.trim();
+      if (!text || !currentPost) return;
+
+      const comment = {
+        postId: postId,
+        text,
+        author: "Người dùng",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        likes: 0
+      };
+
+      const docRef = await db.collection("comments").add(comment);
+      comments.unshift({ id: docRef.id, ...comment });
+      renderComments();
+
+      // Cập nhật số lượng
+      await db.collection("posts").doc(postId).update({
+        comments: comments.length
+      });
+
+      input.value = "";
+    }
+
+    async function likePost() {
+      if (!currentPost) return;
+      const btn = document.getElementById("likeBtn");
+      const liked = btn.classList.contains("liked");
+      const newLikes = (currentPost.likes || 0) + (liked ? -1 : 1);
+
+      await db.collection("posts").doc(postId).update({ likes: newLikes });
+      document.getElementById("postLikes").textContent = newLikes;
+      btn.classList.toggle("liked");
+    }
+
+    // Event listeners
+    document.getElementById("sendComment").addEventListener("click", sendComment);
+    document.getElementById("likeBtn").addEventListener("click", likePost);
+    document.getElementById("commentInput").addEventListener("keypress", function(e) {
+      if (e.key === "Enter") sendComment();
+    });
+
+    loadPost();
+  </script>
+</body>
+</html>

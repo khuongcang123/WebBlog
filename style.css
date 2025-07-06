@@ -1,0 +1,35 @@
+.carousel img {
+  height: 400px;
+  object-fit: cover;
+}
+
+.card {
+  border-radius: 12px;
+}
+
+.card-title {
+  color: #007acc;
+}
+.card-img-top {
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+}
+.reaction-box {
+  display: none;
+  position: absolute;
+  background: white;
+  border-radius: 30px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  padding: 6px 10px;
+  z-index: 1000;
+}
+
+.reaction-box span {
+  font-size: 24px;
+  margin: 0 5px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+.reaction-box span:hover {
+  transform: scale(1.4);
+}
