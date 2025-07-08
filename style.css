@@ -313,6 +313,8 @@
     
     .post-detail-content {
       background: white;
+      max-height: 100vh;
+      height: 100vh;
       border-radius: 16px;
       max-width: 900px;
       width: 100%;
@@ -322,11 +324,19 @@
       position: relative;
       transform: translateY(30px);
       transition: var(--transition);
+      overflow: hidden;
     }
     
     .post-detail-modal.active .post-detail-content {
       transform: translateY(0);
+      overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;
+      
     }
+    .post-detail-content::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
     
     .post-detail-header {
       position: sticky;
@@ -755,4 +765,19 @@
   height: 400px;
   object-fit: cover;
   border-radius: 12px;
+}
+/* Giới hạn chiều rộng ảnh trong nội dung chi tiết bài viết */
+.post-detail-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 8px;
+  object-fit: cover;
+}
+/* Fix bo tròn ảnh chi tiết bài viết */
+#imageCarouselWrapper .carousel-inner {
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  overflow: hidden;
 }

@@ -125,172 +125,123 @@ const firebaseConfig = {
     });
   }
   
-  // Load posts from Firestore
-  async function loadPosts(categoryId = "all") {
-    postList.innerHTML = `
-      <div class="col-12 text-center py-5">
-        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div>
-        <p class="mt-3">Đang tải bài viết...</p>
-      </div>
-    `;
-    
-    try {
-      let query = db.collection("posts").where("status", "==", "published").orderBy("createdAt", "desc");
-      
-      if (categoryId !== "all") {
-        query = query.where("categoryId", "==", categoryId);
-      }
-      
-      const snapshot = await query.get();
-      postList.innerHTML = "";
-      
-      if (snapshot.empty) {
-        postList.innerHTML = `
-          <div class="col-12 text-center py-5">
-            <i class="fas fa-file-alt fa-3x mb-3 text-muted"></i>
-            <h4 class="text-muted">Không có bài viết nào</h4>
-            <p class="text-muted">Hãy quay lại sau nhé!</p>
-          </div>
-        `;
-        return;
-      }
-      
-      // Process posts
-      posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      // Display posts
-      posts.forEach((post, index) => {
-        const image = Array.isArray(post.images) && post.images.length > 0 ? 
-          post.images[0] : "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&h=300&q=80";
-        
-        // Format date
-        const date = post.createdAt ? post.createdAt.toDate() : new Date();
-        const formattedDate = date.toLocaleDateString('vi-VN', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric'
-        });
-        
-        // Create post card
-        const carouselId = `postCarousel-${post.id}`;
-let carouselImages = "";
-
-if (Array.isArray(post.images) && post.images.length > 0) {
-  post.images.forEach((img, i) => {
-    const url = typeof img === 'string' ? img : img?.url || '';
-    carouselImages += `
-      <div class="carousel-item ${i === 0 ? 'active' : ''}">
-        <img src="${url}" class="d-block w-100 post-img" style="height: 200px; object-fit: cover;" alt="${post.title}">
-      </div>
-    `;
-  });
-} else {
-  carouselImages = `
-    <div class="carousel-item active">
-      <img src="https://via.placeholder.com/400x200?text=No+Image" class="d-block w-100 post-img" alt="No image">
+  async function loadPostsByKeywords() {
+  postList.innerHTML = `
+    <div class="col-12 text-center py-5">
+      <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div>
+      <p class="mt-3">Đang tải bài viết theo từ khóa...</p>
     </div>
   `;
-}
 
-const html = `
-  <div class="col-lg-4 col-md-6 fade-in delay-${index % 3}">
-    <div class="post-card" data-id="${post.id}">
-      <div id="${carouselId}" class="carousel slide" data-bs-ride="carousel">
-        <div class="carousel-inner">
-          ${carouselImages}
-        </div>
-        ${post.images && post.images.length > 1 ? `
-          <button class="carousel-control-prev" type="button" data-bs-target="#${carouselId}" data-bs-slide="prev">
-            <span class="carousel-control-prev-icon"></span>
-          </button>
-          <button class="carousel-control-next" type="button" data-bs-target="#${carouselId}" data-bs-slide="next">
-            <span class="carousel-control-next-icon"></span>
-          </button>` : ''}
-      </div>
+  try {
+    const snapshot = await db.collection("posts")
+      .where("status", "==", "published")
+      .orderBy("createdAt", "desc")
+      .get();
 
-      <div class="card-body">
-        <h3 class="post-title">${post.title}</h3>
-        <p class="post-excerpt">${post.summary || "Khám phá bài viết đầy đủ để biết thêm chi tiết..."}</p>
-        <div class="post-meta">
-          <div class="post-date">
-            <i class="far fa-calendar-alt"></i> ${formattedDate}
-          </div>
-          <div class="reaction-icons">
-            <button class="reaction-btn like-btn" data-id="${post.id}">
-              <i class="far fa-heart"></i> <span>${post.likes || 0}</span>
-            </button>
-            <button class="reaction-btn">
-              <i class="far fa-comment"></i> <span>${post.comments || 0}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-`;
+    const posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-        postList.insertAdjacentHTML('beforeend', html);
-      });
-      
-      // Add event listeners to new buttons
-      document.querySelectorAll('.post-card').forEach(card => {
-        card.addEventListener('click', function(e) {
-          // Prevent opening if clicking on reaction buttons
-          if (e.target.closest('.reaction-icons')) {
-            return;
-          }
-          const postId = this.dataset.id;
-          showPostDetail(postId);
+    // Gom bài viết theo từ khóa
+    const keywordMap = {};
+
+    posts.forEach(post => {
+      if (Array.isArray(post.keywords)) {
+        post.keywords.forEach(keyword => {
+          if (!keywordMap[keyword]) keywordMap[keyword] = [];
+          keywordMap[keyword].push(post);
         });
-      });
-      
-      // Add event listeners to like buttons
-      document.querySelectorAll('.post-card .like-btn').forEach(btn => {
-        btn.addEventListener('click', async function(e) {
-          e.stopPropagation(); // Prevent card click event
-          const postId = this.dataset.id;
-          const post = posts.find(p => p.id === postId);
-          if (!post) return;
-          
-          // Toggle like state
-          const isLiked = this.classList.contains('liked');
-          const currentLikes = post.likes || 0;
-          const newLikes = isLiked ? currentLikes - 1 : currentLikes + 1;
-          
-          // Update UI
-          this.classList.toggle('liked', !isLiked);
-          const icon = this.querySelector('i');
-          icon.className = isLiked ? 'far fa-heart' : 'fas fa-heart';
-          this.querySelector('span').textContent = newLikes;
-          
-          try {
-            // Update in Firestore
-            await db.collection("posts").doc(postId).update({ likes: newLikes });
-            // Update local state
-            post.likes = newLikes;
-          } catch (err) {
-            console.error("Lỗi khi cập nhật lượt thích:", err);
-            // Revert UI changes
-            this.classList.toggle('liked', isLiked);
-            icon.className = isLiked ? 'fas fa-heart' : 'far fa-heart';
-            this.querySelector('span').textContent = currentLikes;
-            showToast("Có lỗi xảy ra, vui lòng thử lại", "error");
-          }
-          showNotification('Bài viết được thích', `Ai đó đã thích bài viết "${post.title}"`, 'fas fa-heart', 'success');
-        });
-      });
-      
-    } catch (err) {
-      console.error("Lỗi khi tải bài viết:", err);
-      postList.innerHTML = `
-        <div class="col-12 text-center py-5">
-          <i class="fas fa-exclamation-triangle fa-3x mb-3 text-danger"></i>
-          <h4 class="text-danger">Không thể tải bài viết</h4>
-          <p class="text-muted">Vui lòng thử lại sau hoặc kiểm tra kết nối mạng</p>
+      }
+    });
+
+    // Render giao diện
+    postList.innerHTML = '';
+    const sortedKeywords = Object.keys(keywordMap).sort();
+
+    sortedKeywords.forEach((keyword, sectionIndex) => {
+      const sectionId = `keyword-${keyword.replace(/\s+/g, '-')}`;
+
+      let sectionHTML = `
+        <div class="col-12 mt-4">
+          <h3 class="section-title">${keyword}</h3>
         </div>
       `;
-    }
+
+      keywordMap[keyword].forEach((post, index) => {
+        const image = Array.isArray(post.images) && post.images.length > 0
+          ? post.images[0]
+          : "https://via.placeholder.com/400x200?text=No+Image";
+
+        const date = post.createdAt?.toDate?.() || new Date();
+        const formattedDate = date.toLocaleDateString('vi-VN');
+
+        sectionHTML += `
+          <div class="col-lg-4 col-md-6 fade-in delay-${index % 3}">
+            <div class="post-card" data-id="${post.id}">
+              <img src="${image}" class="post-img" style="height: 200px; object-fit: cover;">
+              <div class="card-body">
+                <h3 class="post-title">${post.title}</h3>
+                <p class="post-excerpt">${post.summary || "..."}</p>
+                <div class="post-meta">
+                  <div class="post-date">
+                    <i class="far fa-calendar-alt"></i> ${formattedDate}
+                  </div>
+                  <div class="reaction-icons">
+                    <button class="reaction-btn like-btn" data-id="${post.id}">
+                      <i class="far fa-heart"></i> <span>${post.likes || 0}</span>
+                    </button>
+                    <button class="reaction-btn">
+                      <i class="far fa-comment"></i> <span>${post.comments || 0}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      postList.insertAdjacentHTML('beforeend', sectionHTML);
+    });
+
+    // Gán sự kiện
+    document.querySelectorAll('.post-card').forEach(card => {
+      card.addEventListener('click', function (e) {
+        if (e.target.closest('.reaction-icons')) return;
+        const postId = this.dataset.id;
+        showPostDetail(postId);
+      });
+    });
+
+    document.querySelectorAll('.post-card .like-btn').forEach(btn => {
+      btn.addEventListener('click', async function (e) {
+        e.stopPropagation();
+        const postId = this.dataset.id;
+        const post = posts.find(p => p.id === postId);
+        if (!post) return;
+
+        const isLiked = this.classList.contains('liked');
+        const currentLikes = post.likes || 0;
+        const newLikes = isLiked ? currentLikes - 1 : currentLikes + 1;
+
+        this.classList.toggle('liked', !isLiked);
+        const icon = this.querySelector('i');
+        icon.className = isLiked ? 'far fa-heart' : 'fas fa-heart';
+        this.querySelector('span').textContent = newLikes;
+
+        try {
+          await db.collection("posts").doc(postId).update({ likes: newLikes });
+        } catch (err) {
+          console.error("Lỗi cập nhật like:", err);
+        }
+      });
+    });
+
+  } catch (err) {
+    console.error("Lỗi khi tải bài viết theo từ khóa:", err);
+    postList.innerHTML = `<div class="col-12 text-center text-danger">Lỗi tải bài viết</div>`;
   }
+}
+
   
   // Show post detail
   async function showPostDetail(postId) {
@@ -717,4 +668,4 @@ document.getElementById('detailContent').innerHTML = htmlContent;
   
   // Initial load
   loadCategories();
-  loadPosts();
+  loadPostsByKeywords();
