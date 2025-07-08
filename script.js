@@ -1,166 +1,196 @@
-// === XỬ LÝ ĐĂNG BÀI ===
-// === XỬ LÝ ĐĂNG BÀI ===
-if (document.getElementById("postForm")) {
-  document.getElementById("postForm").addEventListener("submit", function (e) {
-    e.preventDefault();
+// ==== CẤU HÌNH FIREBASE ====
+const firebaseConfig = {
+  apiKey: "AIzaSyAKGtqzDgN8NLdto1MXO_LsUwTvgnQ-TmI",
+  authDomain: "web-blog-b54dc.firebaseapp.com",
+  projectId: "web-blog-b54dc",
+  storageBucket: "web-blog-b54dc.appspot.com",
+  messagingSenderId: "1086582654089",
+  appId: "1:1086582654089:web:0e3e01709c19b21f16f27c",
+};
 
-    const title = document.getElementById("title").value;
-    const content = document.getElementById("content").value;
-    const category = document.getElementById("category")?.value || "Chưa phân loại";
-    const files = document.getElementById("images").files;
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
-    const imagePromises = Array.from(files).map(file => {
-      return new Promise(resolve => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.readAsDataURL(file);
-      });
+// ==== CHUẨN HÓA DỮ LIỆU ẢNH/VIDEO ====
+function normalizeFile(file) {
+  if (!file) return "";
+  // Trường hợp là mảng (images)
+  if (Array.isArray(file)) {
+    const first = file[0];
+    if (first?.url) return first.url;
+  }
+  // Trường hợp là object có url
+  if (typeof file === "object" && file.url) {
+    return file.url;
+  }
+  // Trường hợp là string
+  if (typeof file === "string") return file;
+  return "";
+}
+
+
+// ==== TẢI DANH MỤC ====
+async function loadCategories() {
+  const categoryList = document.getElementById("categoryList");
+  try {
+    const snapshot = await db.collection("danhmuc").get();
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const a = document.createElement("a");
+      a.href = `#${data.tenDanhMuc}`;
+      a.className = "nav-link";
+      a.textContent = data.tenDanhMuc;
+      categoryList.appendChild(a);
     });
-
-    Promise.all(imagePromises).then(base64Images => {
-      const post = {
-        id: Date.now(),
-        title,
-        content,
-        category,
-        images: base64Images,
-        createdAt: new Date().toLocaleString(),
-        comments: [],
-        reactions: {
-          like: 0,
-          love: 0,
-          haha: 0,
-          sad: 0,
-          angry: 0
-        }
-      };
-
-      const posts = JSON.parse(localStorage.getItem("posts")) || [];
-      posts.push(post);
-      localStorage.setItem("posts", JSON.stringify(posts));
-
-      alert("🎉 Đăng bài thành công!");
-      window.location.href = "index.html";
-    });
-  });
-}
-
-
-// === HIỂN THỊ DANH SÁCH BÀI VIẾT TRÊN TRANG CHỦ ===
-if (document.getElementById("posts")) {
-  const posts = JSON.parse(localStorage.getItem("posts")) || [];
-  const postsDiv = document.getElementById("posts");
-
-  posts.reverse().forEach(post => {
-    const firstImage = post.images?.[0] || null;
-    const imageHTML = firstImage
-      ? `<img src="${firstImage}" class="card-img-top" style="height: 200px; object-fit: cover;" />`
-      : '';
-
-    const col = document.createElement("div");
-    col.className = "col-md-6 col-lg-4 mb-4";
-    col.innerHTML = `
-      <div class="card h-100 shadow-sm">
-        <a href="view.html?id=${post.id}" class="text-decoration-none text-dark">
-          ${imageHTML}
-          <div class="card-body">
-            <h6 class="text-primary mb-1">${post.category || "Chưa phân loại"}</h6>
-<h5 class="card-title">${post.title}</h5>
-
-            <p class="card-text text-truncate">${post.content}</p>
-          </div>
-        </a>
-        <div class="card-footer d-flex justify-content-between align-items-center">
-          <small class="text-muted">🕒 ${post.createdAt}</small>
-        </div>
-        <div class="p-2 d-flex justify-content-around border-top">
-          <button class="btn btn-sm btn-outline-secondary reaction-btn-${post.id}">👍 Thích</button>
-          <button class="btn btn-sm btn-outline-primary" onclick="quickComment(${post.id})">💬 Bình luận</button>
-          <button class="btn btn-sm btn-outline-success" onclick="copyShareLink(${post.id})">🔗 Chia sẻ</button>
-        </div>
-      </div>
-    `;
-    postsDiv.appendChild(col);
-
-    // Setup giữ chuột cho nút cảm xúc
-    setTimeout(() => {
-      const btn = document.querySelector(`.reaction-btn-${post.id}`);
-      if (btn) setupReactionHold(btn, post.id);
-    }, 0);
-  });
-}
-
-// === GIỮ CHUỘT ĐỂ HIỆN CẢM XÚC ===
-let holdTimer = null;
-
-function setupReactionHold(button, postId) {
-  button.onmousedown = () => {
-    holdTimer = setTimeout(() => {
-      showReactionBox(button, postId);
-    }, 500);
-  };
-  button.onmouseup = () => clearTimeout(holdTimer);
-  button.onmouseleave = () => clearTimeout(holdTimer);
-}
-
-// === HIỆN HỘP CẢM XÚC ===
-function showReactionBox(button, postId) {
-  const box = document.createElement("div");
-  box.className = "reaction-box position-absolute bg-white p-2 rounded shadow";
-  box.style.top = (button.getBoundingClientRect().top - 50 + window.scrollY) + "px";
-  box.style.left = (button.getBoundingClientRect().left - 30 + window.scrollX) + "px";
-  box.style.zIndex = "9999";
-  box.innerHTML = `
-    <span style="font-size:24px; cursor:pointer;" onclick="react(${postId}, 'like'); this.parentElement.remove();">👍</span>
-    <span style="font-size:24px; cursor:pointer;" onclick="react(${postId}, 'love'); this.parentElement.remove();">❤️</span>
-    <span style="font-size:24px; cursor:pointer;" onclick="react(${postId}, 'haha'); this.parentElement.remove();">😆</span>
-    <span style="font-size:24px; cursor:pointer;" onclick="react(${postId}, 'sad'); this.parentElement.remove();">😢</span>
-    <span style="font-size:24px; cursor:pointer;" onclick="react(${postId}, 'angry'); this.parentElement.remove();">😠</span>
-  `;
-  document.body.appendChild(box);
-
-  setTimeout(() => {
-    box.remove();
-  }, 3000);
-}
-
-// === CẬP NHẬT CẢM XÚC ===
-function react(postId, type) {
-  const posts = JSON.parse(localStorage.getItem("posts")) || [];
-  const index = posts.findIndex(p => p.id == postId);
-  if (index !== -1) {
-    if (!posts[index].reactions) {
-      posts[index].reactions = { like: 0, love: 0, haha: 0, sad: 0, angry: 0 };
-    }
-    posts[index].reactions[type]++;
-    localStorage.setItem("posts", JSON.stringify(posts));
-    alert(`Bạn đã ${type === 'like' ? 'thích' : type} bài viết`);
-    location.reload();
+  } catch (err) {
+    console.error("Lỗi tải danh mục:", err);
   }
 }
 
-// === CHIA SẺ BÀI VIẾT ===
-function copyShareLink(postId) {
-  const link = `${location.origin}/view.html?id=${postId}`;
-  navigator.clipboard.writeText(link).then(() => {
-    alert("📎 Link bài viết đã được sao chép!");
-  });
-}
-
-// === BÌNH LUẬN NHANH ===
-function quickComment(postId) {
-  const text = prompt("💬 Nhập bình luận:");
-  if (text) {
-    const posts = JSON.parse(localStorage.getItem("posts")) || [];
-    const index = posts.findIndex(p => p.id == postId);
-    if (index !== -1) {
-      if (!posts[index].comments) posts[index].comments = [];
-      posts[index].comments.push({
-        text,
-        time: new Date().toLocaleString()
-      });
-      localStorage.setItem("posts", JSON.stringify(posts));
-      alert("✅ Bình luận đã được lưu!");
-    }
+// ==== TẢI BÀI VIẾT ====
+async function loadPosts() {
+  const postList = document.getElementById("postList");
+  postList.innerHTML = ""; // clear loading spinner
+  try {
+    const snapshot = await db.collection("baiviet").orderBy("createdAt", "desc").get();
+    snapshot.forEach((doc) => {
+      const post = doc.data();
+      post.id = doc.id;
+      const card = createPostCard(post);
+      postList.appendChild(card);
+    });
+  } catch (err) {
+    console.error("Lỗi tải bài viết:", err);
+    postList.innerHTML = `<p class="text-danger text-center">Không thể tải bài viết!</p>`;
   }
 }
+
+// ==== TẠO THẺ BÀI VIẾT ====
+function createPostCard(post) {
+  const col = document.createElement("div");
+  col.className = "col-md-4";
+
+  const card = document.createElement("div");
+  card.className = "card h-100";
+
+  let media;
+  const mediaUrl = normalizeFile(post.images || post.anh || post.video);
+
+
+  if (post.video) {
+    media = document.createElement("video");
+    media.src = mediaUrl;
+    media.controls = true;
+    media.className = "card-img-top";
+  } else {
+    media = document.createElement("img");
+    media.src = mediaUrl || "https://via.placeholder.com/400x200";
+    media.className = "card-img-top";
+    media.alt = post.tieuDe || "Bài viết";
+  }
+
+  const cardBody = document.createElement("div");
+  cardBody.className = "card-body";
+
+  const title = document.createElement("h5");
+  title.className = "card-title";
+  title.textContent = post.tieuDe;
+
+  const date = document.createElement("p");
+  date.className = "card-text text-muted";
+  date.innerHTML = `<i class="far fa-calendar-alt me-2"></i>${post.createdAt?.toDate().toLocaleDateString("vi-VN") || "N/A"}`;
+
+  const btn = document.createElement("button");
+  btn.className = "btn btn-outline-primary mt-2";
+  btn.textContent = "Xem chi tiết";
+  btn.onclick = () => openPostDetail(post);
+
+  cardBody.append(title, date, btn);
+  card.append(media, cardBody);
+  col.appendChild(card);
+
+  return col;
+}
+
+// ==== HIỂN THỊ CHI TIẾT BÀI VIẾT ====
+function openPostDetail(post) {
+  document.getElementById("postDetailModal").style.display = "block";
+
+  document.getElementById("detailTitle").textContent = post.tieuDe;
+  document.getElementById("detailDate").textContent = post.createdAt?.toDate().toLocaleDateString("vi-VN") || "";
+  document.getElementById("detailViews").textContent = post.luotXem || 0;
+  document.getElementById("likeCount").textContent = post.luotThich || 0;
+  document.getElementById("commentCount").textContent = post.binhLuan?.length || 0;
+  document.getElementById("detailImage").src = normalizeFile(post.images || post.anh);
+  document.getElementById("detailContent").innerHTML = post.noiDung || "";
+
+  // Nếu có video, chèn vào đầu
+  if (post.video) {
+    const video = document.createElement("video");
+    video.src = normalizeFile(post.video);
+    video.controls = true;
+    video.className = "w-100 my-3";
+    document.getElementById("detailContent").prepend(video);
+  }
+
+  loadComments(post);
+}
+
+// ==== ĐÓNG MODAL ====
+document.getElementById("closeDetailModal").onclick = () => {
+  document.getElementById("postDetailModal").style.display = "none";
+};
+
+// ==== TẢI BÌNH LUẬN ====
+function loadComments(post) {
+  const commentList = document.getElementById("commentList");
+  commentList.innerHTML = "";
+  if (post.binhLuan && post.binhLuan.length > 0) {
+    post.binhLuan.forEach((cmt) => {
+      const div = document.createElement("div");
+      div.className = "comment-item";
+      div.innerHTML = `<strong>${cmt.ten || "Ẩn danh"}</strong>: ${cmt.noiDung}`;
+      commentList.appendChild(div);
+    });
+  } else {
+    commentList.innerHTML = "<p>Chưa có bình luận.</p>";
+  }
+}
+
+// ==== GỬI BÌNH LUẬN ====
+document.getElementById("commentSubmit").onclick = async () => {
+  const commentInput = document.getElementById("commentInput");
+  const content = commentInput.value.trim();
+  if (!content) return;
+
+  const postTitle = document.getElementById("detailTitle").textContent;
+
+  const snapshot = await db.collection("baiviet").where("tieuDe", "==", postTitle).get();
+  if (!snapshot.empty) {
+    const doc = snapshot.docs[0];
+    const data = doc.data();
+    const binhLuan = data.binhLuan || [];
+
+    binhLuan.push({
+      ten: "Khách", // Có thể cho nhập tên
+      noiDung: content,
+      thoiGian: new Date()
+    });
+
+    await db.collection("baiviet").doc(doc.id).update({ binhLuan });
+
+    commentInput.value = "";
+    openPostDetail({ ...data, id: doc.id }); // refresh
+  }
+};
+
+// ==== HIỆU ỨNG FLOATING BUTTON ====
+document.querySelector(".floating-button").onclick = () => {
+  window.location.href = "dangbai.html";
+};
+
+// ==== KHỞI TẠO ====
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadCategories();
+  await loadPosts();
+});
